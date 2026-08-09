@@ -289,7 +289,7 @@ Read from the case label and the PCB silkscreen.
 
 | Field | Value |
 |---|---|
-| Model | Sagemcom F@st 5670V2 (TIM LIVE, Brazil) |
+| Model | Sagemcom F@st 5670V2|
 | Manufacturer | Sagemcom Broadband SAS |
 | Board ID | `GPON-BCM114-0010 REV1.0` — Broadcom xPON platform |
 | NAND flash | Spansion `S34ML02G200TFI00`, 2 Gbit SLC = 256 MB |

@@ -73,9 +73,38 @@ four clients may attach at once; a fifth is refused with `router-bridge: too man
 Find the IP with `wifi status` on the control channel. `TCP_NODELAY` is set on every accepted
 socket, so single keystrokes leave immediately rather than waiting for Nagle.
 
-Stock `telnet` mostly works, but it can inject IAC sequences into what is meant to be a
-transparent pipe. `nc` is the documented client. If you must use `telnet`, the IAC-escaping
-exception of SPEC §5.4.1 exists but is off by default.
+### Raw mode, or it is not really a console
+
+`nc` on its own gives a **line-buffered** session: Terminal stays in canonical mode, so
+nothing is sent until Enter, `Ctrl-C` kills `nc` instead of reaching the router, and arrow
+keys and tab completion do nothing. That is fine for reading a boot log and useless for an
+interactive shell.
+
+```sh
+socat -,raw,echo=0,escape=0x1d tcp:<esp-ip>:23    # Ctrl-] to exit
+```
+
+Every keystroke passes through untouched. `escape=0x1d` is not optional in practice — without
+it raw mode has no way out and socat must be killed from another terminal.
+
+The `nc` equivalent, if socat is not installed:
+
+```sh
+stty raw -echo; nc <esp-ip> 23; stty sane
+```
+
+Run `stty sane` however it exits, or the shell is left with echo disabled.
+
+### Do not point `telnet` at it
+
+Port 23 is a **raw** socket, not a telnet server. A telnet client opens the session by sending
+IAC option negotiation, and this server treats those bytes as data — they would be typed
+directly into the router's console. Given SPEC §9 on writing to bootloader consoles, that is a
+hazard rather than a cosmetic problem. `screen //telnet` has the same defect. Use `nc` or
+`socat`.
+
+The IAC-escaping exception of SPEC §5.4.1 escapes *outbound* 0xFF only; it does not consume
+inbound negotiation, so it does not make telnet clients safe.
 
 ### SoftAP fallback
 
@@ -87,8 +116,17 @@ console there:
 | | |
 |---|---|
 | AP address | **`192.168.4.1`** (fixed) |
-| Console | `nc 192.168.4.1 23` |
+| Console | `socat -,raw,echo=0,escape=0x1d tcp:192.168.4.1:23` |
 | Security | WPA2 always; an open AP is refused |
+
+Joining it from macOS (`en0` is the Wi-Fi port on this machine):
+
+```sh
+networksetup -setairportnetwork en0 <ap-ssid> <passphrase>
+```
+
+You lose the Mac's normal network for the duration — that is the trade for reaching a router
+that has taken the network down with it.
 
 It returns to STA on its own once the configured network reappears — you are never stranded
 in AP mode. Turn the whole behaviour off with `ap off` if a second SSID broadcasting is
