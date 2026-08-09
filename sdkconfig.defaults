@@ -6,14 +6,14 @@
 
 # --- Flash ------------------------------------------------------------------
 # Must match board_upload.flash_size in platformio.ini.
-# UNVERIFIED: 16 MB is the vendor claim, not yet confirmed by `esptool.py flash_id`.
+# VERIFIED by `esptool.py flash_id` and the boot log: 16 MB Boya, QIO (hardware.md §4.1).
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 
 # --- PSRAM ------------------------------------------------------------------
-# UNVERIFIED: octal is the "R8" claim. Many boards sold as R8 carry quad or off-spec
-# parts. If the boot log does not report 8 MB SPIRAM, switch MODE_OCT -> MODE_QUAD.
+# VERIFIED: the boot log shows the octal_psram driver active and 8 MB found, so the
+# fitted part really is octal — SPEC §8.2 acceptance criterion, evidence in hardware.md §4.2.
 # Octal PSRAM consumes GPIO33-37; they are unusable while this is enabled (SPEC §2.3).
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y

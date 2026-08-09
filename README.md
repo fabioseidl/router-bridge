@@ -15,23 +15,47 @@ that costs nothing and protects ANSI escapes and line editing.
 
 ## Current status
 
-**SPEC §10 step 2 of 7.** The repository builds and flashes, and both the ESP32 and the
-router are fully characterised. The bridge itself is not implemented.
+**SPEC §10 steps 1–6 implemented.** The firmware builds warning-free, boots, and brings up
+both console paths. What remains is bench validation that needs hardware I cannot drive
+remotely — see "What has not been proven" below.
 
 | Step | State |
 |---|---|
 | 1. Verify hardware and toolchain | **Done** — [docs/hardware.md](docs/hardware.md) |
-| 2. Skeleton that builds and flashes | **Done**; router link diagnosed, rewire pending (below) |
-| 3. Path A: USB CDC ↔ UART1 | Not started |
-| 4. NVS config + `esp_console` control channel | Not started |
-| 5. Wi-Fi STA + TCP server | Not started |
-| 6. PSRAM ring-log and `stats` | Not started |
-| 7. Documentation and acceptance pass | Not started |
+| 2. Skeleton that builds and flashes | Skeleton done; **loopback self-test never run** |
+| 3. Path A: USB CDC ↔ UART1 | **Implemented**, unvalidated |
+| 4. NVS config + `esp_console` control channel | **Done and exercised on hardware** |
+| 5. Wi-Fi STA + TCP server + SoftAP fallback | **Implemented**, unvalidated |
+| 6. PSRAM ring-log and `stats` | **Done** — 64 KB in PSRAM, `stats` verified |
+| 7. Documentation and acceptance pass | Docs done; **acceptance pass outstanding** |
 
-What the current firmware does: reports chip/flash/PSRAM, classifies the idle state of
-GPIO17/18, scans every safe GPIO to find which pin the router is actually driving, passively
-probes the router link at 115200/57600/38400/9600 in both TX/RX orientations, then streams
-anything it receives to the UART0 log.
+Boot output on the current firmware:
+
+```
+main: psram: initialised, 8388608 bytes (8 MB)
+main: pin check GPIO18 (expected: router TX -> our RX): driven HIGH — connected and alive
+bridge: uart1 LIVE: tx=GPIO17 rx=GPIO18, 115200 baud 8N1
+bridge: ringlog: 65536 bytes in PSRAM
+usb: Path A up: USB Serial/JTAG <-> UART1
+tcp: Path B up: listening on :23
+console: control channel on UART0 — type 'help'
+```
+
+### What has not been proven
+
+Everything below needs someone at the bench. None of it is a known defect — it is untested.
+
+- **The UART1 loopback self-test (SPEC §10.2) has never run.** It is compiled out behind
+  `BRIDGE_ENABLE_LOOPBACK_TEST` and needs the router disconnected and GPIO17 jumpered to
+  GPIO18. This is the check that proves the transport is 8-bit clean before the TX path is
+  ever pointed at a live console — acceptance criterion §8.5.
+- **Path A has never carried a byte.** The native USB port had no cable attached during
+  development, so `/dev/cu.usbmodem*` never enumerated.
+- **Path B has never carried a byte.** No Wi-Fi credentials have been set on the device.
+- **Writing to the router is untested**, and it is not yet known whether the vendor firmware
+  even leaves console RX enabled.
+- **No router boot log has been captured**, so whether the Broadcom CFE bootloader is locked
+  is still unknown. That is the single fact most likely to change what this tool can do.
 
 ### Router link: working
 
@@ -71,7 +95,19 @@ alias pio=~/.platformio/penv/bin/pio   # pio is not on PATH on this machine
 
 pio run                # build
 pio run -t upload      # flash via the FT232R "COM" port (auto-reset, no buttons)
-pio device monitor     # UART0 diagnostics — NOT the router console
+pio device monitor     # UART0 — diagnostics and the `bridge>` control channel
+```
+
+Then, with a cable in the **native** USB-C port:
+
+```sh
+screen /dev/cu.usbmodem* 115200        # Path A — the router console
+```
+
+And over the network, once `wifi set <ssid> <pass>` has been run on the control channel:
+
+```sh
+nc <esp-ip> 23                         # Path B — the same console
 ```
 
 The two port paths in `platformio.ini` are already filled in with this machine's real device
@@ -101,8 +137,9 @@ support IDF 6.x. The reasoning behind staying on 5.5.3 anyway is in
   required.
 - **Soldering to a live board** — power down and discharge first.
 - **Writing to a bootloader console can brick the router.** The bridge is transparent and
-  will faithfully transmit destructive commands. The current skeleton is deliberately
-  receive-only, with no TX pin assigned at all.
+  will faithfully transmit destructive commands. **UART1 is now bidirectional** — the step-2
+  skeleton's receive-only guarantee is gone by design, because SPEC §5.1 requires a two-way
+  pipe. Every byte arriving from USB or TCP is a keystroke to the router.
 - **Some vendor firmware disables console RX.** Read-only behaviour is a router limitation,
   not a bridge bug.
 - **ESP32 reset while attached** — UART1 pins float briefly during boot. Series resistors
