@@ -28,6 +28,7 @@
  */
 
 #include <ctype.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "driver/gpio.h"
@@ -163,6 +164,7 @@ static void scan_all_safe_pins(void)
     ESP_LOGI(TAG, "--- full pin scan: which pin is the router actually driving? ---");
 
     int driven_high = 0;
+    bool rx_driven = false;
     for (size_t i = 0; i < sizeof(kSafePins) / sizeof(kSafePins[0]); i++) {
         const int pin = kSafePins[i];
         const char *state = classify_pin(pin);
@@ -171,6 +173,7 @@ static void scan_all_safe_pins(void)
         if (state[0] != 'F') {
             ESP_LOGW(TAG, "GPIO%-2d: %s", pin, state);
             driven_high++;
+            rx_driven |= (pin == CONFIG_BRIDGE_UART_RX);
         }
     }
 
@@ -188,10 +191,16 @@ static void scan_all_safe_pins(void)
         ESP_LOGE(TAG, "scan: if the wires are already on GPIO%d/%d, then the break is "
                       "between the router pad and the die, or GND is not shared.",
                  CONFIG_BRIDGE_UART_TX, CONFIG_BRIDGE_UART_RX);
+    } else if (rx_driven) {
+        /* The healthy state is two driven pins: the router's TX on our RX, and the
+         * router's own pull-up on its RX showing through on our TX. */
+        ESP_LOGI(TAG, "scan: %d pin(s) driven, including GPIO%d — the router link is "
+                      "connected as configured.",
+                 driven_high, CONFIG_BRIDGE_UART_RX);
     } else {
-        ESP_LOGW(TAG, "scan: %d pin(s) driven. If that is not GPIO%d, the wire is on a "
-                      "different pin than the silkscreen claims — repoint "
-                      "CONFIG_BRIDGE_UART_RX in platformio.ini at the pin above.",
+        ESP_LOGW(TAG, "scan: %d pin(s) driven, but NOT GPIO%d. The wire is on a different "
+                      "pin than the silkscreen claims — repoint CONFIG_BRIDGE_UART_RX in "
+                      "platformio.ini at the driven pin listed above.",
                  driven_high, CONFIG_BRIDGE_UART_RX);
     }
 }

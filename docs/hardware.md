@@ -307,14 +307,19 @@ Retired by the §4.5 investigation:
   1.8 V risk that wiring.md carried as accepted-but-not-retired.
 - **Which header, and which pin is which — verified.** See §4.5.
 
+- **Console baud rate: 115200 8N1 — measured.** The passive sweep scored 100% printable at
+  115200 against 21% at 57600 and 61% at 38400, which is the signature of a correct lock.
+- **Console output is enabled** in the TIM vendor firmware — the SoC emits Linux kernel
+  messages continuously.
+
 Still open:
 
-- Router console baud rate (§2.4). The probe never had a live link to measure, so the
-  candidate sweep in `main.c` has not yet produced an answer.
-- Whether the vendor firmware leaves console RX enabled.
+- Whether the vendor firmware leaves console **RX** enabled. Untested, and untestable without
+  transmitting; the skeleton is deliberately receive-only.
+- Whether CFE is locked.
 - Board revision / RGB LED on GPIO38 vs GPIO48 — not needed by any requirement; deferred.
 
-### 4.5 Router link — **ROOT CAUSE FOUND: wired to UART0, not UART1**
+### 4.5 Router link — **RESOLVED.** Root cause: wired to UART0, not UART1
 
 The link was never an open circuit. The harness was landed on the ESP32 devkit pins
 silkscreened **`TX`** and **`RX`**, which on this board are **UART0 — GPIO43 and GPIO44** —
@@ -379,13 +384,34 @@ which also measures 3.3 V, so a multimeter will not catch it. And J1 ships as ba
 holes with no pin header, so a ganged female housing cannot mate with it; the holes need
 clearing and either direct-soldered wires or a 4-pin male header.
 
-#### How to resolve
+#### Resolution — confirmed working 2026-08-09
 
-Move the two signal wires off `TX`/`RX` and onto the pins **numbered** `17` and `18` on the
-opposite header, keeping the crossover in the table above. Then reset and watch
-`pio device monitor`. The firmware reports the outcome itself: GPIO18 must read
-`driven HIGH`, and the baud probe should lock onto the console. Power-cycle the router during
-the capture to catch the CFE boot log.
+The two signal wires were moved off `TX`/`RX` onto the pins **numbered** `17` and `18` on the
+opposite header, keeping the crossover in the table above. Nothing else changed — no firmware
+edit, no `platformio.ini` edit. First boot after the rewire:
+
+```
+I (779) bridge: pin check GPIO18 (expected: router TX -> our RX): driven HIGH — a UART output idling high, i.e. connected and alive
+I (819) bridge: pin check GPIO17 (expected: our TX -> router RX): driven HIGH — a UART output idling high, i.e. connected and alive
+W (1506) bridge: GPIO17: driven HIGH — a UART output idling high, i.e. connected and alive
+W (1546) bridge: GPIO18: driven HIGH — a UART output idling high, i.e. connected and alive
+I (3370) bridge: rx: cfg80211: Calling CRDA to update world regulatory domain\r\n
+I (4370) bridge: probe 115200 baud: 58 bytes, 100% printable
+I (6931) bridge: probe  57600 baud: 23 bytes, 21% printable
+I (9691) bridge: probe  38400 baud: 18 bytes, 61% printable
+I (12291) bridge: probe   9600 baud: 0 bytes, 0% printable
+I (12291) bridge: GPIO18: best guess 115200 baud (100% printable)
+I (12750) bridge: rx: cfg80211: Exceeded CRDA call max attempts. Not calling CRDA\r\n
+```
+
+Both pins driven, a clean 115200 lock, and live Linux kernel output. Two pins driven is the
+healthy state, not a fault: the router's TX drives our RX, and the router's own pull-up on
+its RX shows through on our TX. `scan_all_safe_pins()` says so explicitly when the configured
+RX pin is among the driven ones.
+
+The step-2 acceptance criterion — "the UART1 driver path works against the real router" — is
+met. Still outstanding: a power-cycle capture to record the CFE boot log and establish
+whether the bootloader is locked.
 
 The firmware is **RX-only on UART1** — no TX pin is assigned at all, so it cannot type into
 the router. That guarantee covers UART1 only and is void under the miswiring above. The

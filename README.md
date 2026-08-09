@@ -33,20 +33,26 @@ GPIO17/18, scans every safe GPIO to find which pin the router is actually drivin
 probes the router link at 115200/57600/38400/9600 in both TX/RX orientations, then streams
 anything it receives to the UART0 log.
 
-### Open action: move two wires off UART0
+### Router link: working
 
-The link was never broken. The harness was landed on the devkit pins silkscreened **`TX`** and
-**`RX`**, which on this board are **UART0 — GPIO43/44** — the ESP32's own console port, not
-GPIO17/18. The firmware was watching two pins with nothing attached while the router sat on
-the logging channel the whole time.
+Console captured at **115200 8N1** on GPIO18, with live Linux kernel output from the router:
 
-Move the two signal wires to the pins **numbered** `17` and `18` on the opposite header,
-keeping the crossover (router TX → GPIO18, router RX → GPIO17). Full evidence chain, the
-verified J1 pinout, and the two consequences that had to be checked afterwards:
-[docs/hardware.md §4.5](docs/hardware.md). Wiring detail: [docs/wiring.md](docs/wiring.md).
+```
+pin check GPIO18 (expected: router TX -> our RX): driven HIGH — connected and alive
+probe 115200 baud: 58 bytes, 100% printable
+rx: cfg80211: Calling CRDA to update world regulatory domain\r\n
+GPIO18: best guess 115200 baud (100% printable)
+```
 
-Router identified as a **Sagemcom F@st 5670V2** (Broadcom GPON, board
-`GPON-BCM114-0010 REV1.0`), console header J1 at **3.3 V** — no level shifter needed.
+Router is a **Sagemcom F@st 5670V2** (Broadcom GPON, board `GPON-BCM114-0010 REV1.0`),
+console header J1 at **3.3 V** — no level shifter needed.
+
+The link spent a day looking like an open circuit because the harness was landed on the devkit
+pins silkscreened **`TX`**/**`RX`** — which on this board are **UART0, GPIO43/44**, the ESP32's
+own console port. Moving the two wires to the pins *numbered* 17 and 18 fixed it with no
+firmware change. The full evidence chain is in
+[docs/hardware.md §4.5](docs/hardware.md); the trap is called out in
+[docs/wiring.md](docs/wiring.md).
 
 ## Verified hardware
 
