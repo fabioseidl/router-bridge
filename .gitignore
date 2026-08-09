@@ -1,0 +1,19 @@
+.pio/
+.vscode/
+build/
+
+# PlatformIO generates this from sdkconfig.defaults. It is machine-specific and must
+# never be committed — only sdkconfig.defaults is (SPEC §3.1).
+sdkconfig.*
+!sdkconfig.defaults
+
+# Wi-Fi and SoftAP credentials live in NVS on the device, never in the repo
+# (SPEC §5.4, acceptance criterion §8.11).
+secrets.h
+*.secrets
+credentials.*
+
+.DS_Store
+
+.env
+.env.*

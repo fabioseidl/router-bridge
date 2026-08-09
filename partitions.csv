@@ -1,0 +1,8 @@
+# ESP32-S3 N16R8 — 16 MB flash.
+# Offsets must leave room for the bootloader (0x0000) and the partition table (0x8000).
+# nvs holds Wi-Fi credentials, AP credentials and UART line settings (SPEC §5.2, §5.4).
+# No OTA in v1 (SPEC §5.7), so a single factory app partition is correct.
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x6000,
+phy_init,   data, phy,      0xf000,   0x1000,
+factory,    app,  factory,  0x10000,  0x400000,

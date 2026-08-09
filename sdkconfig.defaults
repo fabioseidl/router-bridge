@@ -1,0 +1,54 @@
+# ESP-IDF 5.5.3 defaults for the router console bridge.
+# Every symbol below was checked against the installed Kconfig tree at
+# ~/.platformio/packages/framework-espidf — see docs/hardware.md §3.3.
+# PlatformIO generates sdkconfig.esp32s3_bridge from this file; that generated file is
+# machine-specific and gitignored. Only this file is committed.
+
+# --- Flash ------------------------------------------------------------------
+# Must match board_upload.flash_size in platformio.ini.
+# UNVERIFIED: 16 MB is the vendor claim, not yet confirmed by `esptool.py flash_id`.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+
+# --- PSRAM ------------------------------------------------------------------
+# UNVERIFIED: octal is the "R8" claim. Many boards sold as R8 carry quad or off-spec
+# parts. If the boot log does not report 8 MB SPIRAM, switch MODE_OCT -> MODE_QUAD.
+# Octal PSRAM consumes GPIO33-37; they are unusable while this is enabled (SPEC §2.3).
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+# Keep an internal-RAM floor so Wi-Fi/lwIP allocations that must be DMA-capable
+# cannot be starved by the PSRAM ring-log.
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
+
+# --- Console routing --------------------------------------------------------
+# Primary console on UART0 (the "COM" USB-C port) for logs, flashing and the
+# esp_console control channel.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+#
+# CRITICAL. ESP_CONSOLE_SECONDARY defaults to USB_SERIAL_JTAG in IDF 5.5.3
+# (components/esp_system/Kconfig:296). Left at its default, IDF log output would ALSO be
+# written to USB Serial/JTAG — which is Path A, the router data channel — injecting
+# "I (1234) wifi: ..." lines into the console stream and breaking the 8-bit-clean
+# requirement of SPEC §5.1. This line is what keeps Path A transparent.
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+# --- Partition table --------------------------------------------------------
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# --- Scheduling / latency ---------------------------------------------------
+# 1 kHz tick: an interactive shell is latency-bound, not throughput-bound, and the
+# default 100 Hz tick quantises every blocking read to 10 ms (SPEC §1.1).
+CONFIG_FREERTOS_HZ=1000
+
+# --- Watchdog ---------------------------------------------------------------
+# The bridge runs continuous forwarding tasks. Keep the task WDT on so a wedged
+# forwarder is visible, but do not auto-subscribe idle tasks: a legitimately busy
+# core would otherwise trip it (SPEC §3.2).
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
